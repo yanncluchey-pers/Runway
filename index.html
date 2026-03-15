@@ -57,6 +57,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 .hdr-count{font-size:11px;color:var(--faint);font-family:var(--mono);margin-right:2px}
 #conn{display:flex;align-items:center;gap:5px;margin-right:3px}
 #conn{display:flex;align-items:center;gap:5px;margin-right:3px}
+#sw-update-banner{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent,#6c5ce7);color:#fff;padding:10px 16px;border-radius:10px;display:flex;align-items:center;gap:10px;font-size:13px;font-family:var(--sans);z-index:10000;box-shadow:0 4px 20px rgba(0,0,0,.4);animation:slideUp .3s ease;}
+#sw-update-banner button{border:none;cursor:pointer;font-family:var(--sans);font-size:12px;border-radius:6px;}
+#sw-update-btn{background:rgba(255,255,255,.2);color:#fff;padding:5px 12px;}
+#sw-update-btn:hover{background:rgba(255,255,255,.35);}
+#sw-dismiss-btn{background:none;color:rgba(255,255,255,.6);font-size:16px;padding:2px 6px;}
+#sw-dismiss-btn:hover{color:#fff;}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
 .conn-icon{display:flex;align-items:center;gap:4px;font-size:10px;font-family:var(--mono);color:var(--faint);}
 .conn-icon svg{flex-shrink:0;}
 .conn-icon.online{color:var(--done-dot);}
@@ -279,9 +286,40 @@ kbd{display:inline-block;padding:1px 5px;border-radius:4px;background:var(--bg-e
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 
-// ── Service Worker registration ───────────────────────────────────────────────
+// ── Service Worker registration & update detection ───────────────────────────
+let _swWaiting=null;
+function showUpdateBanner(){
+  let b=document.getElementById('sw-update-banner');
+  if(b)return;
+  b=document.createElement('div');
+  b.id='sw-update-banner';
+  b.innerHTML=`<span>A new version is available.</span><button id="sw-update-btn">Update</button><button id="sw-dismiss-btn" title="Dismiss">&times;</button>`;
+  document.body.appendChild(b);
+  document.getElementById('sw-update-btn').onclick=()=>{
+    if(_swWaiting){_swWaiting.postMessage({type:'SKIP_WAITING'});}
+  };
+  document.getElementById('sw-dismiss-btn').onclick=()=>{b.remove();};
+}
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    // If a new SW is already waiting at load time
+    if(reg.waiting){_swWaiting=reg.waiting;showUpdateBanner();}
+    // Detect when a new SW is installed and waiting
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;
+      if(!nw)return;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed'&&navigator.serviceWorker.controller){
+          _swWaiting=nw;showUpdateBanner();
+        }
+      });
+    });
+  }).catch(()=>{});
+  // When the new SW takes over, reload the page
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!refreshing){refreshing=true;window.location.reload();}
+  });
 }
 if(/Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){
   document.body.classList.add('mobile');
