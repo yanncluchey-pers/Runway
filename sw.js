@@ -1,0 +1,48 @@
+const CACHE = 'runway-v1';
+const ASSETS = [
+  '/Runway/',
+  '/Runway/index.html',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap',
+  'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js'
+];
+
+// Install: cache core assets
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS).catch(() => {}))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate: clean up old caches
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Fetch: serve from cache, fall back to network, cache new responses
+self.addEventListener('fetch', e => {
+  // Don't intercept Firebase/API calls
+  if (e.request.url.includes('firestore') ||
+      e.request.url.includes('googleapis.com/identitytoolkit') ||
+      e.request.url.includes('anthropic.com')) {
+    return;
+  }
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
+        if (res.ok && e.request.method === 'GET') {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match('/Runway/index.html'));
+    })
+  );
+});
