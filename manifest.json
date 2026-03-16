@@ -1,6 +1,6 @@
 {
-  "name": "Rway",
-  "short_name": "Rway",
+  "name": "Runway",
+  "short_name": "Runway",
   "description": "Claude Code prompt pipeline manager",
   "start_url": "/Runway/",
   "scope": "/Runway/",
